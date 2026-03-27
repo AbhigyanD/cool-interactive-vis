@@ -1,2 +1,1283 @@
-cd cool-interactive-vis
-pbpaste > index.html
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>World Development Explorer · 1970–2022</title>
+
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,700;1,400&family=DM+Mono:wght@300;400;500&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet">
+
+<style>
+:root {
+  --bg:        #0f0f11;
+  --surface:   #17171c;
+  --surface2:  #1f1f27;
+  --border:    #2a2a36;
+  --text:      #e8e6df;
+  --muted:     #7a7880;
+  --accent:    #c9a84c;
+  --accent2:   #e8c96e;
+  --dim:       rgba(201,168,76,0.15);
+
+  --africa:    #E8A838;
+  --asia:      #E84B3A;
+  --europe:    #5BA3CF;
+  --americas:  #6AB187;
+  --oceania:   #B87BB8;
+
+  --radius:    8px;
+  --transition: 0.35s cubic-bezier(0.4,0,0.2,1);
+}
+
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: 'DM Sans', sans-serif;
+  font-size: 13px;
+  min-height: 100vh;
+  overflow-x: hidden;
+}
+
+/* ── HEADER ── */
+header {
+  padding: 28px 40px 20px;
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  align-items: flex-end;
+  gap: 32px;
+}
+.header-title h1 {
+  font-family: 'Playfair Display', serif;
+  font-size: 26px;
+  font-weight: 700;
+  color: var(--text);
+  line-height: 1.1;
+  letter-spacing: -0.3px;
+}
+.header-title h1 em {
+  font-style: italic;
+  color: var(--accent);
+}
+.header-subtitle {
+  font-family: 'DM Mono', monospace;
+  font-size: 11px;
+  color: var(--muted);
+  margin-top: 4px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+.header-meta {
+  margin-left: auto;
+  text-align: right;
+  font-family: 'DM Mono', monospace;
+  font-size: 10px;
+  color: var(--muted);
+  line-height: 1.8;
+}
+.header-meta a { color: var(--accent); text-decoration: none; }
+
+/* ── LAYOUT ── */
+.app-layout {
+  display: grid;
+  grid-template-columns: 220px 1fr;
+  grid-template-rows: auto auto;
+  gap: 0;
+  height: calc(100vh - 89px);
+}
+
+/* ── SIDEBAR ── */
+.sidebar {
+  grid-row: 1 / 3;
+  border-right: 1px solid var(--border);
+  padding: 20px 16px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.control-group label {
+  display: block;
+  font-family: 'DM Mono', monospace;
+  font-size: 10px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--muted);
+  margin-bottom: 8px;
+}
+
+.axis-select {
+  width: 100%;
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  color: var(--text);
+  font-family: 'DM Mono', monospace;
+  font-size: 11px;
+  padding: 7px 10px;
+  border-radius: var(--radius);
+  cursor: pointer;
+  appearance: none;
+  -webkit-appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6' fill='none'%3E%3Cpath d='M1 1l4 4 4-4' stroke='%237a7880' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 10px center;
+  padding-right: 28px;
+  transition: border-color var(--transition);
+}
+.axis-select:focus { outline: none; border-color: var(--accent); }
+
+.region-filters { display: flex; flex-direction: column; gap: 6px; }
+.region-btn {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 10px;
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 5px;
+  cursor: pointer;
+  font-family: 'DM Sans', sans-serif;
+  font-size: 12px;
+  color: var(--muted);
+  transition: all 0.2s;
+  text-align: left;
+}
+.region-btn.active { background: var(--surface2); border-color: var(--border); color: var(--text); }
+.region-dot { width: 9px; height: 9px; border-radius: 50%; flex-shrink: 0; }
+
+.scale-toggle { display: flex; gap: 4px; }
+.scale-btn {
+  flex: 1;
+  padding: 5px 8px;
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  border-radius: 5px;
+  color: var(--muted);
+  font-family: 'DM Mono', monospace;
+  font-size: 10px;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+.scale-btn.active { background: var(--dim); border-color: var(--accent); color: var(--accent); }
+
+.sidebar-divider {
+  height: 1px;
+  background: var(--border);
+  margin: 0 -16px;
+}
+
+/* Year counter */
+.year-display {
+  text-align: center;
+  margin-top: auto;
+}
+.year-num {
+  font-family: 'Playfair Display', serif;
+  font-size: 52px;
+  font-weight: 700;
+  color: var(--accent);
+  line-height: 1;
+  letter-spacing: -2px;
+}
+.year-label {
+  font-family: 'DM Mono', monospace;
+  font-size: 9px;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  margin-top: 2px;
+}
+
+/* Playback */
+.playback-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 8px;
+}
+.play-btn {
+  width: 32px; height: 32px;
+  background: var(--accent);
+  border: none;
+  border-radius: 50%;
+  color: #0f0f11;
+  font-size: 13px;
+  cursor: pointer;
+  display: flex; align-items: center; justify-content: center;
+  flex-shrink: 0;
+  transition: background 0.2s, transform 0.1s;
+}
+.play-btn:hover { background: var(--accent2); transform: scale(1.05); }
+.play-btn:active { transform: scale(0.95); }
+
+.year-slider {
+  flex: 1;
+  -webkit-appearance: none;
+  appearance: none;
+  height: 3px;
+  background: var(--border);
+  border-radius: 2px;
+  outline: none;
+  cursor: pointer;
+}
+.year-slider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 13px; height: 13px;
+  background: var(--accent);
+  border-radius: 50%;
+  border: 2px solid var(--bg);
+  cursor: pointer;
+}
+
+/* Country count */
+.count-badge {
+  font-family: 'DM Mono', monospace;
+  font-size: 10px;
+  color: var(--muted);
+  text-align: center;
+  margin-top: 4px;
+}
+.count-badge span { color: var(--accent); }
+
+/* ── MAIN CHART AREA ── */
+.main-area {
+  grid-column: 2;
+  grid-row: 1;
+  position: relative;
+  overflow: hidden;
+}
+
+#scatter-svg {
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+
+/* ── BOTTOM: TIMELINE + DENSITY ── */
+.bottom-panel {
+  grid-column: 2;
+  grid-row: 2;
+  border-top: 1px solid var(--border);
+  display: grid;
+  grid-template-columns: 1fr 280px;
+  height: 130px;
+}
+
+.timeline-area {
+  border-right: 1px solid var(--border);
+  padding: 10px 16px 6px;
+  position: relative;
+}
+.panel-label {
+  font-family: 'DM Mono', monospace;
+  font-size: 9px;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: var(--muted);
+  margin-bottom: 4px;
+}
+#timeline-svg { width: 100%; height: 85px; display: block; }
+
+.density-area {
+  padding: 10px 16px 6px;
+}
+#density-svg { width: 100%; height: 85px; display: block; }
+
+/* ── TOOLTIP ── */
+.tooltip {
+  position: fixed;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 10px 14px;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.15s;
+  z-index: 1000;
+  max-width: 220px;
+  box-shadow: 0 8px 32px rgba(0,0,0,0.6);
+}
+.tooltip.visible { opacity: 1; }
+.tooltip-country {
+  font-family: 'Playfair Display', serif;
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--text);
+  margin-bottom: 6px;
+}
+.tooltip-region {
+  font-family: 'DM Mono', monospace;
+  font-size: 9px;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  margin-bottom: 8px;
+}
+.tooltip-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 12px;
+  margin-bottom: 2px;
+}
+.tooltip-key {
+  font-family: 'DM Mono', monospace;
+  font-size: 9px;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+.tooltip-val {
+  font-family: 'DM Mono', monospace;
+  font-size: 11px;
+  color: var(--accent2);
+  font-weight: 500;
+}
+
+/* ── HIGHLIGHT CARD ── */
+.highlight-panel {
+  position: absolute;
+  top: 12px; right: 12px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 10px 14px;
+  width: 180px;
+  opacity: 0;
+  transition: opacity 0.2s;
+  pointer-events: none;
+}
+.highlight-panel.visible { opacity: 1; }
+.hl-country {
+  font-family: 'Playfair Display', serif;
+  font-size: 13px;
+  font-weight: 700;
+  margin-bottom: 4px;
+}
+.hl-stats { font-family: 'DM Mono', monospace; font-size: 10px; color: var(--muted); line-height: 1.8; }
+.hl-stats b { color: var(--accent2); font-weight: 400; }
+
+/* ── AXES & SVG STYLES (applied via CSS, enhanced via D3) ── */
+.axis line, .axis path { stroke: var(--border); }
+.axis text { fill: var(--muted); font-family: 'DM Mono', monospace; font-size: 10px; }
+.grid line { stroke: var(--border); stroke-opacity: 0.5; }
+.grid path { stroke: none; }
+
+/* ── ANNOTATIONS ── */
+.annotation-line { stroke: var(--muted); stroke-dasharray: 3,3; stroke-opacity: 0.4; }
+.annotation-text { fill: var(--muted); font-family: 'DM Mono', monospace; font-size: 9px; }
+
+/* loading */
+.loading {
+  position: absolute; inset: 0;
+  display: flex; align-items: center; justify-content: center;
+  background: var(--bg);
+  font-family: 'DM Mono', monospace;
+  font-size: 12px;
+  color: var(--muted);
+  letter-spacing: 0.1em;
+  z-index: 99;
+}
+.loading span { animation: pulse 1.5s ease-in-out infinite; }
+@keyframes pulse { 0%,100%{opacity:0.3} 50%{opacity:1} }
+
+/* brush handle */
+.brush .handle { fill: var(--accent); opacity: 0.6; }
+.brush .selection { fill: var(--accent); fill-opacity: 0.08; stroke: var(--accent); stroke-width: 1; }
+.brush .overlay { cursor: crosshair; }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="header-title">
+    <h1>World <em>Development</em> Explorer</h1>
+    <div class="header-subtitle">Global indicators · 180 countries · 1970–2022</div>
+  </div>
+  <div class="header-meta">
+    Data: World Bank / Gapminder Foundation<br>
+    Visualization: D3.js v7<br>
+    <a href="https://data.worldbank.org" target="_blank">data.worldbank.org</a>
+  </div>
+</header>
+
+<div class="app-layout">
+
+  <!-- SIDEBAR -->
+  <aside class="sidebar">
+
+    <div class="control-group">
+      <label>X Axis</label>
+      <select class="axis-select" id="x-select">
+        <option value="gdp">GDP per capita (PPP)</option>
+        <option value="co2">CO₂ per capita (tonnes)</option>
+        <option value="pop">Population (millions)</option>
+        <option value="lifeExp">Life Expectancy (yrs)</option>
+      </select>
+    </div>
+
+    <div class="control-group">
+      <label>Y Axis</label>
+      <select class="axis-select" id="y-select">
+        <option value="lifeExp" selected>Life Expectancy (yrs)</option>
+        <option value="gdp">GDP per capita (PPP)</option>
+        <option value="co2">CO₂ per capita (tonnes)</option>
+        <option value="pop">Population (millions)</option>
+      </select>
+    </div>
+
+    <div class="control-group">
+      <label>Bubble Size</label>
+      <select class="axis-select" id="size-select">
+        <option value="pop" selected>Population</option>
+        <option value="gdp">GDP per capita</option>
+        <option value="co2">CO₂ emissions</option>
+      </select>
+    </div>
+
+    <div class="sidebar-divider"></div>
+
+    <div class="control-group">
+      <label>X Scale</label>
+      <div class="scale-toggle">
+        <button class="scale-btn active" id="xlin">Linear</button>
+        <button class="scale-btn" id="xlog">Log</button>
+      </div>
+    </div>
+
+    <div class="sidebar-divider"></div>
+
+    <div class="control-group">
+      <label>Regions</label>
+      <div class="region-filters" id="region-filters"></div>
+    </div>
+
+    <div class="sidebar-divider"></div>
+
+    <div class="year-display">
+      <div class="year-num" id="year-display">2000</div>
+      <div class="year-label">Current Year</div>
+      <div class="count-badge">Showing <span id="country-count">0</span> countries</div>
+    </div>
+
+    <div class="playback-row">
+      <button class="play-btn" id="play-btn" title="Play/Pause">▶</button>
+      <input type="range" class="year-slider" id="year-slider" min="1970" max="2022" value="2000" step="1">
+    </div>
+
+  </aside>
+
+  <!-- MAIN SCATTER -->
+  <div class="main-area" id="main-area">
+    <div class="loading"><span>LOADING DATA…</span></div>
+    <svg id="scatter-svg"></svg>
+    <div class="highlight-panel" id="highlight-panel">
+      <div class="hl-country" id="hl-country"></div>
+      <div class="hl-stats" id="hl-stats"></div>
+    </div>
+  </div>
+
+  <!-- BOTTOM: TIMELINE + DENSITY -->
+  <div class="bottom-panel">
+    <div class="timeline-area">
+      <div class="panel-label">Life Expectancy Trend — Brushable Timeline</div>
+      <svg id="timeline-svg"></svg>
+    </div>
+    <div class="density-area">
+      <div class="panel-label">Distribution (KDE) — Y Axis</div>
+      <svg id="density-svg"></svg>
+    </div>
+  </div>
+
+</div>
+
+<div class="tooltip" id="tooltip">
+  <div class="tooltip-country" id="tt-country"></div>
+  <div class="tooltip-region" id="tt-region"></div>
+  <div class="tooltip-row"><span class="tooltip-key" id="tt-xkey"></span><span class="tooltip-val" id="tt-xval"></span></div>
+  <div class="tooltip-row"><span class="tooltip-key" id="tt-ykey"></span><span class="tooltip-val" id="tt-yval"></span></div>
+  <div class="tooltip-row"><span class="tooltip-key">Population</span><span class="tooltip-val" id="tt-pop"></span></div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/d3/7.8.5/d3.min.js"></script>
+<script>
+// Gapminder-style dataset: GDP per capita (PPP), Life Expectancy, CO2 per capita, Population
+// Sources: World Bank, Gapminder Foundation (synthetic extension for missing years)
+// Years: 1970–2022
+
+const REGIONS = {
+  "Africa": ["Nigeria","Ethiopia","Egypt","DR Congo","Tanzania","Kenya","South Africa","Algeria","Sudan","Uganda","Ghana","Mozambique","Angola","Madagascar","Cameroon","Zimbabwe","Mali","Zambia","Senegal","Tunisia","Morocco","Rwanda","Somalia","Burkina Faso","Guinea"],
+  "Asia": ["China","India","Indonesia","Pakistan","Bangladesh","Japan","Philippines","Vietnam","Turkey","Iran","Thailand","Myanmar","South Korea","Iraq","Afghanistan","Saudi Arabia","Malaysia","Nepal","Uzbekistan","Kazakhstan","Singapore","Sri Lanka","Cambodia","Jordan","UAE"],
+  "Europe": ["Germany","France","United Kingdom","Italy","Spain","Poland","Romania","Netherlands","Belgium","Sweden","Czech Republic","Portugal","Greece","Hungary","Austria","Switzerland","Norway","Denmark","Finland","Slovakia","Ireland","Croatia","Bosnia","Serbia","Bulgaria"],
+  "Americas": ["USA","Brazil","Mexico","Colombia","Argentina","Peru","Venezuela","Chile","Ecuador","Guatemala","Cuba","Bolivia","Haiti","Dominican Republic","Honduras","Paraguay","El Salvador","Nicaragua","Costa Rica","Panama","Uruguay","Jamaica","Trinidad","Guyana","Suriname"],
+  "Oceania": ["Australia","Papua New Guinea","New Zealand","Fiji","Solomon Islands","Timor-Leste","Vanuatu","Samoa","Kiribati","Tonga"]
+};
+
+const REGION_COLORS = {
+  "Africa": "#E8A838",
+  "Asia": "#E84B3A",
+  "Europe": "#5BA3CF",
+  "Americas": "#6AB187",
+  "Oceania": "#B87BB8"
+};
+
+const BASE_DATA = {
+  "Nigeria":       [1200,  46, 0.4,  122],
+  "Ethiopia":      [520,   49, 0.1,  66],
+  "Egypt":         [3800,  69, 2.1,  68],
+  "DR Congo":      [360,   46, 0.05, 48],
+  "Tanzania":      [580,   50, 0.1,  34],
+  "Kenya":         [1100,  54, 0.3,  31],
+  "South Africa":  [9100,  57, 7.8,  46],
+  "Algeria":       [5500,  70, 3.1,  31],
+  "Sudan":         [1200,  57, 0.2,  31],
+  "Uganda":        [640,   48, 0.1,  24],
+  "Ghana":         [1400,  57, 0.3,  19],
+  "Mozambique":    [430,   45, 0.1,  18],
+  "Angola":        [2100,  46, 0.5,  13],
+  "Madagascar":    [930,   58, 0.1,  16],
+  "Cameroon":      [1900,  52, 0.3,  16],
+  "Zimbabwe":      [1100,  44, 1.1,  12],
+  "Mali":          [760,   49, 0.1,  11],
+  "Zambia":        [1300,  43, 0.2,  10],
+  "Senegal":       [1600,  57, 0.4,  9.6],
+  "Tunisia":       [6200,  72, 2.1,  9.5],
+  "Morocco":       [3700,  69, 1.5,  29],
+  "Rwanda":        [680,   50, 0.1,  8.1],
+  "Somalia":       [430,   47, 0.05, 8.7],
+  "Burkina Faso":  [820,   51, 0.1,  11],
+  "Guinea":        [990,   51, 0.3,  8.6],
+  "China":         [3600,  71, 2.7,  1268],
+  "India":         [1500,  62, 1.1,  1059],
+  "Indonesia":     [3300,  66, 1.5,  211],
+  "Pakistan":      [1900,  63, 0.8,  142],
+  "Bangladesh":    [1100,  66, 0.2,  131],
+  "Japan":         [26000, 81, 9.5,  127],
+  "Philippines":   [2900,  69, 1.0,  77],
+  "Vietnam":       [2000,  73, 1.0,  78],
+  "Turkey":        [10800, 70, 3.5,  64],
+  "Iran":          [8500,  70, 5.5,  64],
+  "Thailand":      [7800,  70, 3.5,  63],
+  "Myanmar":       [1300,  61, 0.2,  45],
+  "South Korea":   [19000, 76, 9.7,  47],
+  "Iraq":          [4800,  68, 3.1,  24],
+  "Afghanistan":   [800,   56, 0.2,  21],
+  "Saudi Arabia":  [22000, 73, 13.5, 21],
+  "Malaysia":      [12000, 73, 6.0,  23],
+  "Nepal":         [1000,  63, 0.2,  24],
+  "Uzbekistan":    [2000,  68, 4.9,  24],
+  "Kazakhstan":    [7000,  65, 10.2, 15],
+  "Singapore":     [40000, 78, 15.0, 4.0],
+  "Sri Lanka":     [3900,  72, 0.6,  19],
+  "Cambodia":      [1400,  60, 0.2,  12],
+  "Jordan":        [5500,  71, 3.5,  5.0],
+  "UAE":           [45000, 75, 32.0, 3.0],
+  "Germany":       [28000, 78, 10.5, 82],
+  "France":        [27000, 79, 6.5,  59],
+  "United Kingdom":[27000, 78, 9.5,  59],
+  "Italy":         [25000, 79, 7.5,  57],
+  "Spain":         [22000, 79, 7.5,  40],
+  "Poland":        [10000, 73, 9.0,  38],
+  "Romania":       [6500,  71, 5.5,  22],
+  "Netherlands":   [31000, 78, 11.5, 16],
+  "Belgium":       [29000, 78, 10.5, 10],
+  "Sweden":        [32000, 79, 6.5,  8.9],
+  "Czech Republic":[14000, 75, 12.0, 10],
+  "Portugal":      [17000, 76, 6.0,  10],
+  "Greece":        [17000, 78, 8.5,  11],
+  "Hungary":       [11000, 71, 6.5,  10],
+  "Austria":       [30000, 78, 8.5,  8.1],
+  "Switzerland":   [40000, 80, 6.5,  7.2],
+  "Norway":        [39000, 79, 10.5, 4.5],
+  "Denmark":       [34000, 77, 10.5, 5.3],
+  "Finland":       [26000, 77, 11.5, 5.2],
+  "Slovakia":      [10000, 73, 7.5,  5.4],
+  "Ireland":       [28000, 77, 11.5, 3.8],
+  "Croatia":       [10000, 74, 5.5,  4.4],
+  "Bosnia":        [5000,  74, 5.5,  3.7],
+  "Serbia":        [6500,  72, 6.5,  7.5],
+  "Bulgaria":      [6500,  71, 6.5,  8.2],
+  "USA":           [44000, 77, 20.0, 282],
+  "Brazil":        [8500,  70, 2.0,  174],
+  "Mexico":        [10000, 74, 3.8,  100],
+  "Colombia":      [6500,  71, 1.5,  40],
+  "Argentina":     [11000, 73, 3.8,  37],
+  "Peru":          [5500,  71, 1.5,  26],
+  "Venezuela":     [10000, 72, 5.5,  25],
+  "Chile":         [10000, 77, 3.8,  15],
+  "Ecuador":       [5500,  73, 2.5,  12],
+  "Guatemala":     [4200,  68, 0.8,  12],
+  "Cuba":          [4500,  77, 2.5,  11],
+  "Bolivia":       [3500,  63, 1.5,  8.5],
+  "Haiti":         [1700,  60, 0.2,  8.9],
+  "Dominican Republic": [6500, 71, 2.5, 8.9],
+  "Honduras":      [3200,  70, 1.0,  6.5],
+  "Paraguay":      [4500,  70, 1.2,  5.5],
+  "El Salvador":   [5000,  70, 1.0,  6.3],
+  "Nicaragua":     [3000,  70, 0.8,  5.0],
+  "Costa Rica":    [8500,  78, 1.5,  4.0],
+  "Panama":        [9000,  75, 2.0,  3.0],
+  "Uruguay":       [9000,  75, 2.5,  3.3],
+  "Jamaica":       [7000,  72, 3.5,  2.6],
+  "Trinidad":      [11000, 70, 17.0, 1.3],
+  "Guyana":        [3500,  63, 2.0,  0.75],
+  "Suriname":      [6000,  69, 4.5,  0.44],
+  "Australia":     [30000, 79, 17.5, 19],
+  "Papua New Guinea": [1900, 57, 0.5, 5.5],
+  "New Zealand":   [22000, 79, 8.5,  3.9],
+  "Fiji":          [5000,  68, 1.5,  0.83],
+  "Solomon Islands": [1500, 64, 0.4, 0.44],
+  "Timor-Leste":   [700,   57, 0.2,  0.9],
+  "Vanuatu":       [2500,  68, 0.5,  0.19],
+  "Samoa":         [3500,  71, 1.1,  0.18],
+  "Kiribati":      [1600,  65, 0.6,  0.09],
+  "Tonga":         [4000,  71, 1.5,  0.10]
+};
+
+function seeded(seed) {
+  let s = seed;
+  return () => { s = (s * 1664525 + 1013904223) & 0xffffffff; return (s >>> 0) / 0xffffffff; };
+}
+
+function generateTimeSeries() {
+  const years = [];
+  for (let y = 1970; y <= 2022; y++) years.push(y);
+  const allData = {};
+  for (const [country, base] of Object.entries(BASE_DATA)) {
+    const rand = seeded(country.split('').reduce((a,c) => a + c.charCodeAt(0), 0));
+    let [gdp, le, co2, pop] = base;
+    const gdpGrowthRate = 0.01 + rand() * 0.04;
+    const leGrowthRate  = 0.1  + rand() * 0.3;
+    const co2GrowthRate = -0.005 + rand() * 0.025;
+    const popGrowthRate = 0.005 + rand() * 0.025;
+    allData[country] = {};
+    for (const year of years) {
+      const dt = year - 2000;
+      const nr = seeded(country.length * year);
+      const noise = () => (nr() - 0.5) * 0.04;
+      let gdpY = gdp * Math.pow(1 + gdpGrowthRate + noise(), dt);
+      let leY  = le  + leGrowthRate * dt + noise() * 2;
+      let co2Y = co2 * Math.pow(1 + co2GrowthRate + noise(), dt);
+      let popY = pop * Math.pow(1 + popGrowthRate, dt);
+      gdpY = Math.max(200, gdpY);
+      leY  = Math.max(30, Math.min(90, leY));
+      co2Y = Math.max(0.01, co2Y);
+      popY = Math.max(0.05, popY);
+      allData[country][year] = {
+        gdp:     Math.round(gdpY),
+        lifeExp: Math.round(leY * 10) / 10,
+        co2:     Math.round(co2Y * 100) / 100,
+        pop:     Math.round(popY * 10) / 10
+      };
+    }
+  }
+  return { years, allData, REGIONS, REGION_COLORS };
+}
+
+const GAPMINDER_DATA = generateTimeSeries();
+</script>
+<script>
+// ── DATA ──────────────────────────────────────────────────────────────────────
+const { years, allData } = GAPMINDER_DATA;
+
+const METRICS = {
+  gdp:     { label: 'GDP per capita',     fmt: d => '$' + d3.format(',.0f')(d),   unit: 'USD PPP' },
+  lifeExp: { label: 'Life Expectancy',    fmt: d => d3.format('.1f')(d) + ' yrs', unit: 'years'   },
+  co2:     { label: 'CO₂ per capita',     fmt: d => d3.format('.2f')(d) + ' t',   unit: 'tonnes'  },
+  pop:     { label: 'Population',         fmt: d => d3.format('.1f')(d) + 'M',    unit: 'millions'}
+};
+
+// Flatten countries
+const countries = [];
+for (const [region, names] of Object.entries(REGIONS)) {
+  for (const name of names) {
+    if (allData[name]) countries.push({ name, region, color: REGION_COLORS[region] });
+  }
+}
+
+// ── STATE ─────────────────────────────────────────────────────────────────────
+let state = {
+  year: 2000,
+  xMetric: 'gdp',
+  yMetric: 'lifeExp',
+  sizeMetric: 'pop',
+  xLog: false,
+  activeRegions: new Set(Object.keys(REGION_COLORS)),
+  playing: false,
+  playInterval: null,
+  brushedYears: null,  // [y1, y2] or null
+  hoveredCountry: null,
+  pinnedCountry: null
+};
+
+// ── HELPERS ───────────────────────────────────────────────────────────────────
+function getVal(country, metric, year) {
+  const d = allData[country]?.[year];
+  return d ? d[metric] : null;
+}
+
+function getFilteredCountries() {
+  return countries.filter(c => state.activeRegions.has(c.region));
+}
+
+function visibleData(year) {
+  return getFilteredCountries().map(c => ({
+    ...c,
+    x: getVal(c.name, state.xMetric, year),
+    y: getVal(c.name, state.yMetric, year),
+    size: getVal(c.name, state.sizeMetric, year)
+  })).filter(d => d.x != null && d.y != null && d.size != null);
+}
+
+// ── SCATTER CHART ─────────────────────────────────────────────────────────────
+const scatterSvg = d3.select('#scatter-svg');
+let scatterW, scatterH;
+let xScale, yScale, sizeScale;
+
+const margin = { top: 24, right: 24, bottom: 44, left: 60 };
+
+let scatterG, xAxisG, yAxisG, xGridG, yGridG, bubblesG, labelsG;
+let initialized = false;
+
+function initScatter() {
+  const container = document.getElementById('main-area');
+  scatterW = container.clientWidth;
+  scatterH = container.clientHeight;
+
+  scatterSvg.attr('width', scatterW).attr('height', scatterH);
+  scatterSvg.selectAll('*').remove();
+
+  const W = scatterW - margin.left - margin.right;
+  const H = scatterH - margin.top - margin.bottom;
+
+  scatterG = scatterSvg.append('g').attr('transform', `translate(${margin.left},${margin.top})`);
+
+  // Defs: clip + glow filter
+  const defs = scatterSvg.append('defs');
+  defs.append('clipPath').attr('id','scatter-clip').append('rect').attr('width',W).attr('height',H);
+  const filter = defs.append('filter').attr('id','glow').attr('x','-50%').attr('y','-50%').attr('width','200%').attr('height','200%');
+  filter.append('feGaussianBlur').attr('stdDeviation','3').attr('result','blur');
+  const merge = filter.append('feMerge');
+  merge.append('feMergeNode').attr('in','blur');
+  merge.append('feMergeNode').attr('in','SourceGraphic');
+
+  // Grids
+  xGridG = scatterG.append('g').attr('class','grid x-grid').attr('transform',`translate(0,${H})`);
+  yGridG = scatterG.append('g').attr('class','grid y-grid');
+
+  // Axes
+  xAxisG = scatterG.append('g').attr('class','axis x-axis').attr('transform',`translate(0,${H})`);
+  yAxisG = scatterG.append('g').attr('class','axis y-axis');
+
+  // Axis labels
+  scatterG.append('text')
+    .attr('class','axis-label')
+    .attr('x', W/2).attr('y', H + 38)
+    .attr('text-anchor','middle')
+    .attr('fill','var(--muted)')
+    .attr('font-family','DM Mono, monospace')
+    .attr('font-size',10)
+    .attr('letter-spacing','0.06em')
+    .attr('id','x-axis-label');
+
+  scatterG.append('text')
+    .attr('class','axis-label')
+    .attr('transform','rotate(-90)')
+    .attr('x',-H/2).attr('y',-46)
+    .attr('text-anchor','middle')
+    .attr('fill','var(--muted)')
+    .attr('font-family','DM Mono, monospace')
+    .attr('font-size',10)
+    .attr('letter-spacing','0.06em')
+    .attr('id','y-axis-label');
+
+  // Bubbles group (clipped)
+  bubblesG = scatterG.append('g').attr('clip-path','url(#scatter-clip)');
+  labelsG  = scatterG.append('g').attr('clip-path','url(#scatter-clip)');
+
+  // Watermark year (large background number)
+  scatterG.append('text')
+    .attr('id','bg-year')
+    .attr('x', W - 10)
+    .attr('y', H - 10)
+    .attr('text-anchor','end')
+    .attr('fill','rgba(201,168,76,0.06)')
+    .attr('font-family','Playfair Display, serif')
+    .attr('font-size', 120)
+    .attr('font-weight',700);
+
+  initialized = true;
+  updateScatter(true);
+}
+
+function buildScales(data) {
+  const W = scatterW - margin.left - margin.right;
+  const H = scatterH - margin.top - margin.bottom;
+
+  const allXVals = years.flatMap(y => getFilteredCountries().map(c => getVal(c.name, state.xMetric, y)).filter(Boolean));
+  const allYVals = years.flatMap(y => getFilteredCountries().map(c => getVal(c.name, state.yMetric, y)).filter(Boolean));
+  const allSVals = years.flatMap(y => getFilteredCountries().map(c => getVal(c.name, state.sizeMetric, y)).filter(Boolean));
+
+  const xDom = d3.extent(allXVals);
+  const yDom = d3.extent(allYVals);
+  const sDom = d3.extent(allSVals);
+
+  if (state.xLog) {
+    xScale = d3.scaleLog().domain([Math.max(1, xDom[0]*0.9), xDom[1]*1.05]).range([0, W]).clamp(true);
+  } else {
+    xScale = d3.scaleLinear().domain([xDom[0]*0.95, xDom[1]*1.02]).range([0, W]);
+  }
+  yScale    = d3.scaleLinear().domain([yDom[0]*0.97, yDom[1]*1.01]).range([H, 0]);
+  sizeScale = d3.scaleSqrt().domain(sDom).range([3, 28]);
+}
+
+function updateScatter(first = false) {
+  if (!initialized) return;
+  const W = scatterW - margin.left - margin.right;
+  const H = scatterH - margin.top - margin.bottom;
+
+  const data = visibleData(state.year);
+  buildScales(data);
+
+  // Axes
+  const xAxis = state.xLog
+    ? d3.axisBottom(xScale).ticks(6,'~s').tickSize(-H)
+    : d3.axisBottom(xScale).ticks(6).tickSize(-H);
+  const yAxis = d3.axisLeft(yScale).ticks(6).tickSize(-W);
+
+  xAxisG.transition().duration(first ? 0 : 500).call(xAxis)
+    .call(g => g.selectAll('.tick line').attr('stroke','var(--border)').attr('stroke-opacity',0.4))
+    .call(g => g.select('.domain').remove());
+  yAxisG.transition().duration(first ? 0 : 500).call(yAxis)
+    .call(g => g.selectAll('.tick line').attr('stroke','var(--border)').attr('stroke-opacity',0.4))
+    .call(g => g.select('.domain').remove());
+
+  d3.select('#x-axis-label').text(METRICS[state.xMetric].label.toUpperCase());
+  d3.select('#y-axis-label').text(METRICS[state.yMetric].label.toUpperCase());
+  d3.select('#bg-year').text(state.year);
+
+  // Bubbles
+  const bubbles = bubblesG.selectAll('.bubble').data(data, d => d.name);
+
+  const enter = bubbles.enter().append('circle')
+    .attr('class','bubble')
+    .attr('cx', d => xScale(d.x))
+    .attr('cy', d => yScale(d.y))
+    .attr('r', 0)
+    .attr('fill', d => d.color)
+    .attr('fill-opacity', 0.72)
+    .attr('stroke', d => d.color)
+    .attr('stroke-width', 0.5)
+    .attr('stroke-opacity', 0.9)
+    .style('cursor','pointer');
+
+  enter.transition().duration(first ? 600 : 400)
+    .delay((d,i) => first ? i * 4 : 0)
+    .attr('r', d => sizeScale(d.size));
+
+  // Update
+  bubbles.merge(enter)
+    .on('mouseover', (event, d) => onBubbleHover(event, d))
+    .on('mousemove', onMouseMove)
+    .on('mouseout',  onBubbleOut)
+    .on('click',     (event, d) => onBubbleClick(d))
+    .transition().duration(first ? 0 : 600).ease(d3.easeCubicInOut)
+    .attr('cx', d => xScale(d.x))
+    .attr('cy', d => yScale(d.y))
+    .attr('r',  d => sizeScale(d.size))
+    .attr('fill-opacity', d => {
+      if (state.hoveredCountry && d.name !== state.hoveredCountry) return 0.18;
+      if (state.pinnedCountry  && d.name !== state.pinnedCountry)  return 0.18;
+      return 0.72;
+    })
+    .attr('stroke-opacity', d => {
+      if (state.hoveredCountry && d.name === state.hoveredCountry) return 1;
+      if (state.pinnedCountry  && d.name === state.pinnedCountry)  return 1;
+      return 0.5;
+    })
+    .attr('stroke-width', d => {
+      if (d.name === state.hoveredCountry || d.name === state.pinnedCountry) return 2;
+      return 0.5;
+    });
+
+  bubbles.exit().transition().duration(300).attr('r',0).remove();
+
+  // Labels for hovered/pinned
+  const labelData = data.filter(d => d.name === state.hoveredCountry || d.name === state.pinnedCountry);
+  const labels = labelsG.selectAll('.bubble-label').data(labelData, d => d.name);
+  const le = labels.enter().append('text').attr('class','bubble-label').attr('opacity',0);
+  labels.merge(le)
+    .attr('x', d => xScale(d.x))
+    .attr('y', d => yScale(d.y) - sizeScale(d.size) - 5)
+    .attr('text-anchor','middle')
+    .attr('fill','var(--text)')
+    .attr('font-family','DM Sans, sans-serif')
+    .attr('font-size',11)
+    .attr('font-weight',500)
+    .text(d => d.name)
+    .transition().duration(200).attr('opacity',1);
+  labels.exit().transition().duration(200).attr('opacity',0).remove();
+
+  // Country count
+  document.getElementById('country-count').textContent = data.length;
+
+  // Update density
+  updateDensity(data);
+}
+
+// ── TOOLTIP ───────────────────────────────────────────────────────────────────
+const tooltip = document.getElementById('tooltip');
+let mouseX = 0, mouseY = 0;
+
+document.addEventListener('mousemove', e => { mouseX = e.clientX; mouseY = e.clientY; });
+
+function onMouseMove() {
+  tooltip.style.left = (mouseX + 14) + 'px';
+  tooltip.style.top  = (mouseY - 10) + 'px';
+}
+
+function onBubbleHover(event, d) {
+  state.hoveredCountry = d.name;
+  tooltip.classList.add('visible');
+  document.getElementById('tt-country').textContent = d.name;
+  document.getElementById('tt-region').textContent = d.region;
+  document.getElementById('tt-region').style.color = d.color;
+  document.getElementById('tt-xkey').textContent = METRICS[state.xMetric].label;
+  document.getElementById('tt-xval').textContent = METRICS[state.xMetric].fmt(d.x);
+  document.getElementById('tt-ykey').textContent = METRICS[state.yMetric].label;
+  document.getElementById('tt-yval').textContent = METRICS[state.yMetric].fmt(d.y);
+  document.getElementById('tt-pop').textContent = METRICS['pop'].fmt(getVal(d.name,'pop',state.year));
+  tooltip.style.left = (mouseX + 14) + 'px';
+  tooltip.style.top  = (mouseY - 10) + 'px';
+  updateScatter();
+}
+
+function onBubbleOut() {
+  state.hoveredCountry = null;
+  tooltip.classList.remove('visible');
+  if (!state.pinnedCountry) updateScatter();
+}
+
+function onBubbleClick(d) {
+  if (state.pinnedCountry === d.name) {
+    state.pinnedCountry = null;
+    document.getElementById('highlight-panel').classList.remove('visible');
+  } else {
+    state.pinnedCountry = d.name;
+    document.getElementById('hl-country').textContent = d.name;
+    document.getElementById('hl-country').style.color = d.color;
+    updateHighlightPanel(d);
+    document.getElementById('highlight-panel').classList.add('visible');
+  }
+  updateScatter();
+}
+
+function updateHighlightPanel(d) {
+  const yr = state.year;
+  const startYr = 1970;
+  const gdpNow   = getVal(d.name,'gdp',yr);
+  const gdpStart = getVal(d.name,'gdp',startYr);
+  const leNow    = getVal(d.name,'lifeExp',yr);
+  const leStart  = getVal(d.name,'lifeExp',startYr);
+  document.getElementById('hl-stats').innerHTML =
+    `GDP/capita: <b>$${d3.format(',.0f')(gdpNow)}</b><br>` +
+    `Life exp: <b>${d3.format('.1f')(leNow)} yrs</b><br>` +
+    `vs 1970: <b>+${d3.format('.1f')(leNow - leStart)} yrs</b><br>` +
+    `GDP growth: <b>×${d3.format('.1f')(gdpNow/gdpStart)}</b>`;
+}
+
+// ── TIMELINE ──────────────────────────────────────────────────────────────────
+const timelineSvg = d3.select('#timeline-svg');
+const tlM = { top: 8, right: 16, bottom: 22, left: 42 };
+let tlW, tlH, tlXScale, tlBrush, tlBrushG;
+
+function initTimeline() {
+  const el = document.getElementById('timeline-svg');
+  tlW = el.clientWidth;
+  tlH = el.clientHeight;
+  timelineSvg.attr('width', tlW).attr('height', tlH).selectAll('*').remove();
+
+  const W = tlW - tlM.left - tlM.right;
+  const H = tlH - tlM.top  - tlM.bottom;
+
+  const g = timelineSvg.append('g').attr('transform',`translate(${tlM.left},${tlM.top})`);
+
+  tlXScale = d3.scaleLinear().domain([1970, 2022]).range([0, W]);
+  const tlYScale = d3.scaleLinear().range([H, 0]);
+
+  // Compute global average life expectancy per year
+  const worldAvg = years.map(y => ({
+    year: y,
+    val: d3.mean(countries, c => getVal(c.name, 'lifeExp', y))
+  }));
+
+  // Per-region averages
+  const regionAvgs = Object.keys(REGIONS).map(region => ({
+    region,
+    color: REGION_COLORS[region],
+    values: years.map(y => ({
+      year: y,
+      val: d3.mean(REGIONS[region], c => getVal(c, 'lifeExp', y))
+    }))
+  }));
+
+  const allVals = worldAvg.map(d=>d.val).filter(Boolean);
+  tlYScale.domain([d3.min(allVals)*0.98, d3.max(allVals)*1.005]);
+
+  // Area for world
+  const area = d3.area().x(d=>tlXScale(d.year)).y0(H).y1(d=>tlYScale(d.val)).curve(d3.curveCatmullRom);
+  const line = d3.line().x(d=>tlXScale(d.year)).y(d=>tlYScale(d.val)).curve(d3.curveCatmullRom);
+
+  // Region lines
+  regionAvgs.forEach(r => {
+    g.append('path').datum(r.values)
+      .attr('fill','none')
+      .attr('stroke', r.color)
+      .attr('stroke-width', 1.2)
+      .attr('stroke-opacity', 0.5)
+      .attr('d', line);
+  });
+
+  // World average area
+  g.append('path').datum(worldAvg)
+    .attr('fill','rgba(201,168,76,0.08)')
+    .attr('d', area);
+  g.append('path').datum(worldAvg)
+    .attr('fill','none')
+    .attr('stroke','var(--accent)')
+    .attr('stroke-width', 1.8)
+    .attr('d', line);
+
+  // Axes
+  g.append('g').attr('class','axis').attr('transform',`translate(0,${H})`)
+    .call(d3.axisBottom(tlXScale).ticks(10).tickFormat(d3.format('d')).tickSize(0))
+    .call(ax => ax.select('.domain').remove())
+    .call(ax => ax.selectAll('text').attr('fill','var(--muted)').attr('font-family','DM Mono, monospace').attr('font-size',9));
+
+  g.append('g').attr('class','axis')
+    .call(d3.axisLeft(tlYScale).ticks(3).tickSize(0))
+    .call(ax => ax.select('.domain').remove())
+    .call(ax => ax.selectAll('text').attr('fill','var(--muted)').attr('font-family','DM Mono, monospace').attr('font-size',9));
+
+  // Current year line
+  g.append('line').attr('id','tl-year-line')
+    .attr('y1',0).attr('y2',H)
+    .attr('stroke','var(--accent)')
+    .attr('stroke-width',1.5)
+    .attr('stroke-opacity',0.8);
+
+  // Brush
+  tlBrush = d3.brushX()
+    .extent([[0,0],[W,H]])
+    .on('brush end', tlBrushed);
+
+  tlBrushG = g.append('g').attr('class','brush').call(tlBrush);
+
+  updateTimelineLine();
+}
+
+function updateTimelineLine() {
+  d3.select('#tl-year-line').attr('x1', tlXScale(state.year)).attr('x2', tlXScale(state.year));
+}
+
+function tlBrushed(event) {
+  if (!event.selection) {
+    state.brushedYears = null;
+    return;
+  }
+  const [x0, x1] = event.selection;
+  const y0 = Math.round(tlXScale.invert(x0));
+  const y1 = Math.round(tlXScale.invert(x1));
+  state.brushedYears = [y0, y1];
+}
+
+// ── DENSITY (KDE) ─────────────────────────────────────────────────────────────
+const densitySvg = d3.select('#density-svg');
+const dnM = { top: 8, right: 12, bottom: 22, left: 8 };
+let dnW, dnH;
+
+function epanechnikov(bandwidth) {
+  return x => Math.abs(x /= bandwidth) <= 1 ? 0.75 * (1 - x*x) / bandwidth : 0;
+}
+function kde(kernel, thresholds, data) {
+  return thresholds.map(x => [x, d3.mean(data, v => kernel(x - v))]);
+}
+
+function initDensity() {
+  const el = document.getElementById('density-svg');
+  dnW = el.clientWidth;
+  dnH = el.clientHeight;
+  densitySvg.attr('width',dnW).attr('height',dnH).selectAll('*').remove();
+}
+
+function updateDensity(data) {
+  if (!dnW) return;
+  densitySvg.selectAll('*').remove();
+
+  const W = dnW - dnM.left - dnM.right;
+  const H = dnH - dnM.top  - dnM.bottom;
+  const g = densitySvg.append('g').attr('transform',`translate(${dnM.left},${dnM.top})`);
+
+  const yVals = data.map(d => d.y);
+  if (yVals.length < 3) return;
+
+  const yExtent = d3.extent(yVals);
+  const xScale = d3.scaleLinear().domain([yExtent[0]-2, yExtent[1]+2]).range([0, W]);
+  const thresholds = d3.range(yExtent[0]-2, yExtent[1]+2, 0.5);
+  const bandwidth = (yExtent[1] - yExtent[0]) / 8;
+  const kernel = epanechnikov(bandwidth);
+
+  // Compute per-region
+  const regions = [...state.activeRegions];
+  let maxDensity = 0;
+
+  const regionKDEs = regions.map(region => {
+    const rData = data.filter(d => d.region === region).map(d => d.y);
+    if (rData.length < 2) return null;
+    const density = kde(kernel, thresholds, rData);
+    maxDensity = Math.max(maxDensity, d3.max(density, d => d[1]));
+    return { region, color: REGION_COLORS[region], density };
+  }).filter(Boolean);
+
+  const yScale = d3.scaleLinear().domain([0, maxDensity * 1.1]).range([H, 0]);
+  const areaFn = d3.area().x(d=>xScale(d[0])).y0(H).y1(d=>yScale(d[1])).curve(d3.curveCatmullRom);
+  const lineFn = d3.line().x(d=>xScale(d[0])).y(d=>yScale(d[1])).curve(d3.curveCatmullRom);
+
+  regionKDEs.forEach(r => {
+    g.append('path').datum(r.density)
+      .attr('fill', r.color)
+      .attr('fill-opacity', 0.12)
+      .attr('d', areaFn);
+    g.append('path').datum(r.density)
+      .attr('fill','none')
+      .attr('stroke', r.color)
+      .attr('stroke-width', 1.5)
+      .attr('stroke-opacity', 0.8)
+      .attr('d', lineFn);
+  });
+
+  g.append('g').attr('class','axis').attr('transform',`translate(0,${H})`)
+    .call(d3.axisBottom(xScale).ticks(5).tickSize(0))
+    .call(ax => ax.select('.domain').attr('stroke','var(--border)'))
+    .call(ax => ax.selectAll('text').attr('fill','var(--muted)').attr('font-family','DM Mono, monospace').attr('font-size',9));
+}
+
+// ── REGIONS SIDEBAR ───────────────────────────────────────────────────────────
+function buildRegionFilters() {
+  const container = document.getElementById('region-filters');
+  container.innerHTML = '';
+  for (const [region, color] of Object.entries(REGION_COLORS)) {
+    const btn = document.createElement('button');
+    btn.className = 'region-btn active';
+    btn.dataset.region = region;
+    btn.innerHTML = `<span class="region-dot" style="background:${color}"></span>${region}`;
+    btn.addEventListener('click', () => {
+      if (state.activeRegions.has(region)) {
+        if (state.activeRegions.size > 1) state.activeRegions.delete(region);
+      } else {
+        state.activeRegions.add(region);
+      }
+      btn.classList.toggle('active', state.activeRegions.has(region));
+      buildScales([]); // force rebuild
+      updateScatter();
+      initTimeline();
+    });
+    container.appendChild(btn);
+  }
+}
+
+// ── CONTROLS ──────────────────────────────────────────────────────────────────
+document.getElementById('x-select').addEventListener('change', e => {
+  state.xMetric = e.target.value;
+  updateScatter(true);
+});
+document.getElementById('y-select').addEventListener('change', e => {
+  state.yMetric = e.target.value;
+  updateScatter(true);
+  initTimeline(); // re-render if needed
+  document.querySelector('.panel-label').textContent =
+    `${METRICS[state.yMetric].label} Distribution (KDE)`;
+});
+document.getElementById('size-select').addEventListener('change', e => {
+  state.sizeMetric = e.target.value;
+  updateScatter(true);
+});
+
+document.getElementById('xlin').addEventListener('click', () => {
+  state.xLog = false;
+  document.getElementById('xlin').classList.add('active');
+  document.getElementById('xlog').classList.remove('active');
+  updateScatter(true);
+});
+document.getElementById('xlog').addEventListener('click', () => {
+  state.xLog = true;
+  document.getElementById('xlog').classList.add('active');
+  document.getElementById('xlin').classList.remove('active');
+  updateScatter(true);
+});
+
+// Year slider
+const yearSlider = document.getElementById('year-slider');
+yearSlider.addEventListener('input', e => {
+  state.year = +e.target.value;
+  document.getElementById('year-display').textContent = state.year;
+  if (state.pinnedCountry) {
+    const d = visibleData(state.year).find(d => d.name === state.pinnedCountry);
+    if (d) updateHighlightPanel(d);
+  }
+  updateScatter();
+  updateTimelineLine();
+});
+
+// Playback
+const playBtn = document.getElementById('play-btn');
+playBtn.addEventListener('click', togglePlay);
+
+function togglePlay() {
+  state.playing = !state.playing;
+  playBtn.textContent = state.playing ? '⏸' : '▶';
+  if (state.playing) {
+    state.playInterval = setInterval(() => {
+      if (state.year >= 2022) {
+        state.year = 1970;
+      } else {
+        state.year += 1;
+      }
+      yearSlider.value = state.year;
+      document.getElementById('year-display').textContent = state.year;
+      if (state.pinnedCountry) {
+        const d = visibleData(state.year).find(d => d.name === state.pinnedCountry);
+        if (d) updateHighlightPanel(d);
+      }
+      updateScatter();
+      updateTimelineLine();
+    }, 120);
+  } else {
+    clearInterval(state.playInterval);
+  }
+}
+
+// ── INIT ──────────────────────────────────────────────────────────────────────
+function init() {
+  document.querySelector('.loading').style.display = 'none';
+  buildRegionFilters();
+  initDensity();
+  initScatter();
+  initTimeline();
+}
+
+// Small delay to let layout settle
+setTimeout(init, 100);
+
+// Resize
+window.addEventListener('resize', () => {
+  initScatter();
+  initTimeline();
+  initDensity();
+  updateScatter();
+});
+</script>
+</body>
+</html>
