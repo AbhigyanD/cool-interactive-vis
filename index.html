@@ -450,6 +450,19 @@ header {
     <div class="sidebar-divider"></div>
 
     <div class="control-group">
+      <label>Search Country</label>
+      <input type="text" id="country-search" placeholder="e.g. China…"
+        style="width:100%;background:var(--surface2);border:1px solid var(--border);color:var(--text);
+               font-family:'DM Mono',monospace;font-size:11px;padding:7px 10px;
+               border-radius:var(--radius);outline:none;transition:border-color var(--transition);"
+        onfocus="this.style.borderColor='var(--accent)'"
+        onblur="this.style.borderColor='var(--border)'">
+      <div id="search-results" style="margin-top:4px;display:flex;flex-direction:column;gap:2px;"></div>
+    </div>
+
+    <div class="sidebar-divider"></div>
+
+    <div class="control-group">
       <label>Regions</label>
       <div class="region-filters" id="region-filters"></div>
     </div>
@@ -482,11 +495,11 @@ header {
   <!-- BOTTOM: TIMELINE + DENSITY -->
   <div class="bottom-panel">
     <div class="timeline-area">
-      <div class="panel-label">Life Expectancy Trend — Brushable Timeline</div>
+      <div class="panel-label" id="timeline-label">Life Expectancy Trend — Brushable Timeline</div>
       <svg id="timeline-svg"></svg>
     </div>
     <div class="density-area">
-      <div class="panel-label">Distribution (KDE) — Y Axis</div>
+      <div class="panel-label" id="density-label">Distribution (KDE) — Life Expectancy</div>
       <svg id="density-svg"></svg>
     </div>
   </div>
@@ -1085,12 +1098,23 @@ function updateTimelineLine() {
 function tlBrushed(event) {
   if (!event.selection) {
     state.brushedYears = null;
+    d3.select('#tl-brush-label').remove();
+    updateScatter();
     return;
   }
   const [x0, x1] = event.selection;
   const y0 = Math.round(tlXScale.invert(x0));
   const y1 = Math.round(tlXScale.invert(x1));
   state.brushedYears = [y0, y1];
+
+  // Clamp year to brushed range
+  if (state.year < y0 || state.year > y1) {
+    state.year = y0;
+    document.getElementById('year-slider').value = state.year;
+    document.getElementById('year-display').textContent = state.year;
+  }
+  updateScatter();
+  updateTimelineLine();
 }
 
 // ── DENSITY (KDE) ─────────────────────────────────────────────────────────────
@@ -1188,6 +1212,48 @@ function buildRegionFilters() {
   }
 }
 
+// ── COUNTRY SEARCH ────────────────────────────────────────────────────────────
+document.getElementById('country-search').addEventListener('input', e => {
+  const q = e.target.value.trim().toLowerCase();
+  const resultsEl = document.getElementById('search-results');
+  resultsEl.innerHTML = '';
+
+  if (!q) {
+    state.pinnedCountry = null;
+    document.getElementById('highlight-panel').classList.remove('visible');
+    updateScatter();
+    return;
+  }
+
+  const matches = countries.filter(c => c.name.toLowerCase().includes(q)).slice(0, 5);
+  matches.forEach(c => {
+    const btn = document.createElement('button');
+    btn.textContent = c.name;
+    btn.style.cssText = `width:100%;text-align:left;background:var(--surface2);border:1px solid var(--border);
+      color:var(--text);font-family:'DM Sans',sans-serif;font-size:11px;padding:4px 8px;
+      border-radius:4px;cursor:pointer;transition:border-color 0.2s;`;
+    btn.style.borderLeft = `3px solid ${c.color}`;
+    btn.addEventListener('mouseenter', () => {
+      state.hoveredCountry = c.name;
+      updateScatter();
+    });
+    btn.addEventListener('mouseleave', () => {
+      state.hoveredCountry = null;
+      updateScatter();
+    });
+    btn.addEventListener('click', () => {
+      state.pinnedCountry = c.name;
+      document.getElementById('hl-country').textContent = c.name;
+      document.getElementById('hl-country').style.color = c.color;
+      const d = visibleData(state.year).find(d => d.name === c.name);
+      if (d) updateHighlightPanel(d);
+      document.getElementById('highlight-panel').classList.add('visible');
+      updateScatter();
+    });
+    resultsEl.appendChild(btn);
+  });
+});
+
 // ── CONTROLS ──────────────────────────────────────────────────────────────────
 document.getElementById('x-select').addEventListener('change', e => {
   state.xMetric = e.target.value;
@@ -1196,9 +1262,11 @@ document.getElementById('x-select').addEventListener('change', e => {
 document.getElementById('y-select').addEventListener('change', e => {
   state.yMetric = e.target.value;
   updateScatter(true);
-  initTimeline(); // re-render if needed
-  document.querySelector('.panel-label').textContent =
-    `${METRICS[state.yMetric].label} Distribution (KDE)`;
+  initTimeline();
+  document.getElementById('timeline-label').textContent =
+    `${METRICS[state.yMetric].label} Trend — Brushable Timeline`;
+  document.getElementById('density-label').textContent =
+    `Distribution (KDE) — ${METRICS[state.yMetric].label}`;
 });
 document.getElementById('size-select').addEventListener('change', e => {
   state.sizeMetric = e.target.value;
